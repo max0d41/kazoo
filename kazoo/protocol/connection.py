@@ -515,6 +515,7 @@ class ConnectionHandler(object):
             read_timeout, connect_timeout = self._connect(host, port)
             read_timeout = read_timeout / 1000.0
             connect_timeout = connect_timeout / 1000.0
+            emergency_requests = 0
             retry.reset()
             self._xid = 0
             self.ping_outstanding.clear()
@@ -533,7 +534,12 @@ class ConnectionHandler(object):
                             self.ping_outstanding.clear()
                             raise ConnectionDropped(
                                 "outstanding heartbeat ping not received")
-                        self._send_ping(connect_timeout)
+                        if self.client._queue:
+                            emergency_requests += 1
+                            log.critical('Emergency write number %s, %s items in queue, %s pending', emergency_requests, len(self.client._queue), len(self.client._pending))
+                            self._write_sock.send(b'\0'*len(self.client._queue))
+                        else:
+                            self._send_ping(connect_timeout)
                     elif s[0] == self._socket:
                         response = self._read_socket(read_timeout)
                         close_connection = response == CLOSE_RESPONSE
